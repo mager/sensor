@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -26,71 +25,22 @@ func New(l *zap.SugaredLogger, r *mux.Router, c config.Config) *Handler {
 }
 
 func (h *Handler) registerRoutes() {
-	h.router.HandleFunc("/weather", h.getCurrentWeather).Methods("GET")
+	h.router.HandleFunc("/forecast", h.getForecast).Methods("GET")
 }
 
-type OpenWeatherMapAPIGetWeatherResp struct {
-	Main OpenWeatherMapAPIGetWeatherRespMain `json:"main"`
+type GetForecastResp struct {
+	Success bool `json:"success"`
 }
 
-type OpenWeatherMapAPIGetWeatherRespMain struct {
-	Temp float64 `json:"temp"`
-}
+func (h *Handler) getForecast(w http.ResponseWriter, r *http.Request) {
+	// Call api.weather.gov /points
 
-type GetCurrentWeatherResp struct {
-	City  string  `json:"city"`
-	TempC float64 `json:"temp_c"`
-	TempF float64 `json:"temp_f"`
-}
+	// Call api.weather.gov /gridpoints
 
-func (h *Handler) getCurrentWeather(w http.ResponseWriter, r *http.Request) {
-	// Get city parameter from URL
-	city := r.URL.Query().Get("city")
+	// Return forecast
+	var resp GetForecastResp
 
-	h.logger.Info("City?? ", city)
+	resp.Success = true
 
-	// Fetch weather data from openweathermap API
-	apiKey := h.config.OpenWeatherMapKey
-	url := fmt.Sprintf("http://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s", city, apiKey)
-	h.logger.Infow("Calling OpenWeatherMap API", "city", city)
-
-	// Call OpenWeatherMap API
-	resp, err := http.Get(url)
-	if err != nil {
-		h.logger.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Decode response into OpenWeatherMapAPIGetWeatherResp
-	var owmResp OpenWeatherMapAPIGetWeatherResp
-	err = json.NewDecoder(resp.Body).Decode(&owmResp)
-	if err != nil {
-		h.logger.Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	// Format the response
-	celciusTemp := adaptTempToCelcius(owmResp.Main.Temp)
-	response := GetCurrentWeatherResp{
-		City:  city,
-		TempC: celciusTemp,
-		TempF: adaptCelciusTempToFarhenheit(celciusTemp),
-	}
-
-	json.NewEncoder(w).Encode(response)
-}
-
-func adaptTempToCelcius(temp float64) float64 {
-	return roundToTwoDecimals(temp - 273.15)
-}
-
-func adaptCelciusTempToFarhenheit(temp float64) float64 {
-	return roundToTwoDecimals(temp*1.8 + 32)
-}
-
-func roundToTwoDecimals(num float64) float64 {
-	return float64(int(num*100)) / 100
+	json.NewEncoder(w).Encode(resp)
 }
